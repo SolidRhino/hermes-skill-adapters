@@ -25,9 +25,14 @@ validate:
 validate-sources:
     {{UV}} run python scripts/sync_skills.py validate-sources
 
+# Validate release-please JSON config
+validate-release-config:
+    {{UV}} run python -m json.tool release-please-config.json >/dev/null
+    {{UV}} run python -m json.tool .release-please-manifest.json >/dev/null
+
 # Remove generated skills
 clean:
     rm -rf skills/
 
 # Run full CI pipeline locally
-ci: lint validate-sources validate check test
+ci: lint validate-release-config validate-sources validate check test
