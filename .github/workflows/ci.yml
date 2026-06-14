@@ -28,6 +28,8 @@ jobs:
       - name: Test and validate
         run: |
           uv run python -m py_compile scripts/*.py
+          uv run python -m json.tool release-please-config.json >/dev/null
+          uv run python -m json.tool .release-please-manifest.json >/dev/null
           uv run python scripts/sync_skills.py validate-sources
           uv run python scripts/sync_skills.py validate
           uv run python scripts/sync_skills.py sync --check

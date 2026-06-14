@@ -101,3 +101,18 @@ Dependabot is configured for:
 - Python dependency updates from `pyproject.toml`
 
 It groups related dependency updates into weekly pull requests.
+
+Release Please is configured to maintain releases from Conventional Commits:
+
+- `.github/workflows/release-please.yml` opens or updates the release PR after changes land on `main`.
+- `release-please-config.json` defines the Python release strategy.
+- `.release-please-manifest.json` tracks the current version.
+- `CHANGELOG.md` is maintained automatically by Release Please; do not edit release entries manually.
+- Merging the Release Please PR creates the GitHub Release and tag.
+
+Use Conventional Commit prefixes so releases are categorized correctly:
+
+- `feat:` for minor releases.
+- `fix:` for patch releases.
+- `feat!:` or `fix!:` for breaking/major releases.
+- `chore:`, `docs:`, `test:`, and `ci:` for maintenance entries.
