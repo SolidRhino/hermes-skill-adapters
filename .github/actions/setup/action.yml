@@ -19,4 +19,5 @@ runs:
     - name: Install actionlint
       shell: bash
       run: |
-        curl -sSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_linux_amd64.tar.gz | tar xz -C /usr/local/bin actionlint
+        TAG=$(curl -sSL https://api.github.com/repos/rhysd/actionlint/releases/latest | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
+        curl -sSL "https://github.com/rhysd/actionlint/releases/download/${TAG}/actionlint_${TAG#v}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin actionlint
