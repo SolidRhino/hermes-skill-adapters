@@ -21,24 +21,29 @@ jobs:
         with:
           python-version: "3.11"
 
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[test]"
+        run: uv sync --extra test --locked
+
+      - name: Lint workflows
+        run: docker run --rm -v "$PWD:/repo" rhysd/actionlint:latest -color
 
       - name: Test
         run: |
-          python -m py_compile scripts/*.py
-          python scripts/validate_sources.py
-          pytest
+          uv run python -m py_compile scripts/*.py
+          uv run python scripts/sync_skills.py validate-sources
+          uv run pytest
 
       - name: Sync skills
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_MODEL: openai/gpt-4o-mini
         run: |
-          python scripts/sync_skills.py --use-github-models
-          python scripts/validate_skills.py
+          uv run python scripts/sync_skills.py sync --use-github-models
+          uv run python scripts/sync_skills.py validate
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v8

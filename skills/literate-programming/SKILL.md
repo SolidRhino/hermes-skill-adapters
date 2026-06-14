@@ -1,7 +1,7 @@
 ---
 name: literate-programming
-description: Transform a codebase into a literate program, producing both human-readable
-  documentation and runnable source code.
+description: Transform a codebase into a literate program, producing a document that
+  combines prose and runnable source code.
 version: 0.1.0
 author: Tobi Lehman
 license: unknown
@@ -13,11 +13,17 @@ metadata:
   hermes:
     tags:
     - literate-programming
+    - pandoc
+    - mermaid
+    - markdown
+    - tangle
+    - weave
+    - pdf
     - documentation
-    - code-analysis
+    - reverse-sync
+    - hooks
+    - code-documentation
     - source-code
-    - pdf-generation
-    - narrative-structure
     category: software-development
     homepage: https://github.com/tlehman/litprog-skill
     upstream: https://github.com/tlehman/litprog-skill
