@@ -291,7 +291,12 @@ def apply_ai_metadata(fm: dict[str, Any], ai: dict[str, Any]) -> None:
 
 
 def generate_frontmatter(
-    entry: dict[str, Any], src_root: Path, *, use_github_models: bool = False, model: str = DEFAULT_GITHUB_MODEL
+    entry: dict[str, Any],
+    src_root: Path,
+    *,
+    use_github_models: bool = False,
+    refresh_ai_cache: bool = False,
+    model: str = DEFAULT_GITHUB_MODEL,
 ) -> dict[str, Any]:
     name = entry.get("name") or slug_from_repo(entry["upstream"]["repo"])
     repo = entry["upstream"]["repo"]
@@ -327,7 +332,7 @@ def generate_frontmatter(
         apply_ai_metadata(fm, cached_ai)
 
     wants_ai = use_github_models or frontmatter_cfg.get("mode") in {"github-models", "ai"}
-    if wants_ai:
+    if wants_ai and (refresh_ai_cache or not cached_ai):
         ai = generate_ai_metadata(context, repo, model)
         if ai:
             save_ai_cache(entry, ai)
@@ -387,6 +392,7 @@ def write_skill(
     tmpdir: Path,
     *,
     use_github_models: bool = False,
+    refresh_ai_cache: bool = False,
     model: str = DEFAULT_GITHUB_MODEL,
 ) -> None:
     name = entry["name"]
@@ -410,6 +416,7 @@ def write_skill(
         entry,
         src_root,
         use_github_models=use_github_models,
+        refresh_ai_cache=refresh_ai_cache,
         model=model,
     )
     validate_skill_dir(staging, fm)
@@ -463,7 +470,12 @@ def main() -> int:
     parser.add_argument(
         "--use-github-models",
         action="store_true",
-        help="use GitHub Models to improve description/tags/category/required_commands",
+        help="use GitHub Models for missing AI metadata caches",
+    )
+    parser.add_argument(
+        "--refresh-ai-cache",
+        action="store_true",
+        help="call GitHub Models even when a generated metadata cache already exists",
     )
     parser.add_argument(
         "--github-model",
@@ -485,6 +497,7 @@ def main() -> int:
                 entry,
                 tmpdir,
                 use_github_models=args.use_github_models,
+                refresh_ai_cache=args.refresh_ai_cache,
                 model=args.github_model,
             )
 

@@ -25,7 +25,13 @@ python3 scripts/sync_skills.py
 Improve generated metadata with GitHub Models and cache the result under `overlays/<skill>/generated-metadata.yaml`:
 
 ```bash
-GITHUB_TOKEN=... python3 scripts/sync_skills.py --use-github-models
+GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models
+```
+
+Refresh existing AI metadata caches deliberately:
+
+```bash
+GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models --refresh-ai-cache
 ```
 
 Check that generated files are current without writing changes:
