@@ -1,0 +1,9 @@
+[project]
+name = "hermes-skill-adapters"
+version = "0.1.0"
+description = "Package third-party agent skills as Hermes-compatible skill directories"
+requires-python = ">=3.11"
+dependencies = ["pyyaml>=6.0"]
+
+[tool.ruff]
+line-length = 100
