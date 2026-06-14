@@ -29,7 +29,7 @@ jobs:
         run: uv sync --extra test --locked
 
       - name: Lint workflows
-        run: docker run --rm -v "$PWD:/repo" rhysd/actionlint:latest -color
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
 
       - name: Test
         run: |
