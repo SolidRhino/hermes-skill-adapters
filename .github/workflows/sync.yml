@@ -32,6 +32,7 @@ jobs:
           GITHUB_MODEL: openai/gpt-4o-mini
         run: |
           python scripts/sync_skills.py --use-github-models
+          python scripts/validate_skills.py
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v8

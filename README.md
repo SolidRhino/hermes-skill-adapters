@@ -10,7 +10,9 @@ It is a packaging/adaptation layer, not an ownership claim over upstream skills.
 sources.yaml                  # upstream skill manifest
 overlays/<skill>/             # manual Hermes metadata and notes
 skills/<skill>/               # generated Hermes-compatible skill output
-scripts/sync_skills.py        # sync + validate script
+scripts/sync_skills.py        # clone/copy/write generated skill output
+scripts/generate_frontmatter.py # deterministic + GitHub Models metadata generation
+scripts/validate_skills.py    # Hermes skill output validation
 .github/workflows/sync.yml    # scheduled/manual upstream sync PR workflow
 ```
 
@@ -38,6 +40,12 @@ Check that generated files are current without writing changes:
 
 ```bash
 python3 scripts/sync_skills.py --check
+```
+
+Validate generated Hermes skill directories:
+
+```bash
+python3 scripts/validate_skills.py
 ```
 
 ## Hermes installation
