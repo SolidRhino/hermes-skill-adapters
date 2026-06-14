@@ -128,6 +128,20 @@ def test_diff_snapshots_skips_identical_files(tmp_path: Path, monkeypatch) -> No
     assert diff == ""
 
 
+def test_configured_safety_limit_controls_copy_size(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(sync, "ROOT", tmp_path)
+    sources = tmp_path / "sources.yaml"
+    sources.write_text("skills: [{name: demo}]\nsafety:\n  max_file_bytes: 12\n", encoding="utf-8")
+    monkeypatch.setattr(sync, "SOURCES", sources)
+    src = tmp_path / "src"
+    dest = tmp_path / "dest"
+    src.mkdir()
+    (src / "SKILL.md").write_bytes(b"x" * 13)
+
+    with pytest.raises(ValueError, match="oversized"):
+        sync.copy_include(src, dest, "SKILL.md")
+
+
 def test_stage_files_copies_included_paths(tmp_path: Path) -> None:
     src = tmp_path / "src"
     dest = tmp_path / "staging"

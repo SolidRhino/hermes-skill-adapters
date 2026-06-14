@@ -1,5 +1,5 @@
 name: Setup Hermes Skill Adapters
-description: Install Python, uv, dependencies, and actionlint
+description: Install Python, uv, dependencies, and pinned actionlint
 
 runs:
   using: composite
@@ -18,6 +18,15 @@ runs:
 
     - name: Install actionlint
       shell: bash
+      env:
+        ACTIONLINT_VERSION: "1.7.12"
+        ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
       run: |
-        TAG=$(curl -sSL https://api.github.com/repos/rhysd/actionlint/releases/latest | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
-        curl -sSL "https://github.com/rhysd/actionlint/releases/download/${TAG}/actionlint_${TAG#v}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin actionlint
+        set -euo pipefail
+        archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+        url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+        tmpdir="$(mktemp -d)"
+        curl -sSL "$url" -o "$tmpdir/$archive"
+        echo "${ACTIONLINT_SHA256}  $tmpdir/$archive" | sha256sum -c -
+        tar xzf "$tmpdir/$archive" -C "$tmpdir" actionlint
+        install -m 0755 "$tmpdir/actionlint" /usr/local/bin/actionlint

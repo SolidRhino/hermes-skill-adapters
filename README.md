@@ -57,6 +57,12 @@ Validate generated Hermes skill directories:
 uv run python scripts/sync_skills.py validate
 ```
 
+Run the full local CI recipe:
+
+```bash
+just ci
+```
+
 Run unit tests:
 
 ```bash
@@ -80,7 +86,10 @@ hermes skills install <owner>/hermes-skill-adapters/skills/literate-programming
 ## Safety model
 
 - Upstream repository content is treated as untrusted input.
-- The sync script copies files; it does not execute upstream scripts, follow symlinks, or copy oversized files.
+- The sync script copies files; it does not execute upstream scripts, follow symlinks, or copy files larger than `safety.max_file_bytes`.
+- `heuristics.context_files` are path-validated before reading; traversal, absolute paths, and symlinks are refused.
+- Generated skill trees are validated recursively; nested hidden files, symlinks, and oversized files are refused.
+- `sources.yaml` rejects unknown keys and skill entries must remain sorted by name for deterministic diffs.
 - GitHub Models output must be strict JSON with only approved keys, then it is sanitized and cached with model/prompt/upstream provenance before being applied.
 - Automated sync opens pull requests for review instead of directly merging upstream changes.
 

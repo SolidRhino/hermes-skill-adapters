@@ -68,6 +68,49 @@ def test_validate_sources_rejects_duplicate_names() -> None:
         vs.validate_sources(config)
 
 
+def test_validate_sources_rejects_unknown_top_level_key() -> None:
+    config = valid_config()
+    config["surprise"] = True
+    with pytest.raises(ValueError, match="unknown key"):
+        vs.validate_sources(config)
+
+
+def test_validate_sources_rejects_unknown_skill_key() -> None:
+    config = valid_config()
+    config["skills"][0]["surprise"] = True
+    with pytest.raises(ValueError, match="unknown key"):
+        vs.validate_sources(config)
+
+
+def test_validate_sources_rejects_unsafe_heuristic_context_file() -> None:
+    config = valid_config()
+    config["heuristics"] = {"context_files": ["../secret.md"]}
+    with pytest.raises(ValueError, match="Unsafe"):
+        vs.validate_sources(config)
+
+
+def test_validate_sources_rejects_invalid_safety_limit() -> None:
+    config = valid_config()
+    config["safety"] = {"max_file_bytes": 10}
+    with pytest.raises(ValueError, match="max_file_bytes"):
+        vs.validate_sources(config)
+
+
+def test_validate_sources_rejects_unsorted_skills() -> None:
+    config = valid_config()
+    later = dict(config["skills"][0])
+    later["name"] = "zzz-skill"
+    later["target"] = "skills/zzz-skill"
+    later["append_notes"] = "overlays/zzz-skill/hermes-notes.md"
+    earlier = dict(config["skills"][0])
+    earlier["name"] = "aaa-skill"
+    earlier["target"] = "skills/aaa-skill"
+    earlier["append_notes"] = "overlays/aaa-skill/hermes-notes.md"
+    config["skills"] = [later, earlier]
+    with pytest.raises(ValueError, match="sorted"):
+        vs.validate_sources(config)
+
+
 def test_validate_sources_file(tmp_path: Path) -> None:
     path = tmp_path / "sources.yaml"
     path.write_text(yaml.safe_dump(valid_config()), encoding="utf-8")

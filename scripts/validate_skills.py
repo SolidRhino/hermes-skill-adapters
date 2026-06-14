@@ -16,7 +16,8 @@ VALID_SKILL_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 STANDARD_SUPPORT_DIRS = {"references", "scripts", "templates", "assets"}
 ALLOWED_TOP_LEVEL_FILES = {"SKILL.md"}
-MAX_FILE_BYTES = 2 * 1024 * 1024
+DEFAULT_MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_FILE_BYTES = DEFAULT_MAX_FILE_BYTES
 
 
 def validate_relative_path(rel: str) -> str:
@@ -68,13 +69,30 @@ def validate_frontmatter(fm: dict[str, Any], skill_dir: Path) -> None:
         raise ValueError(f"Missing/invalid metadata.hermes.upstream for {name}")
 
 
+def configured_max_file_bytes() -> int:
+    if MAX_FILE_BYTES != DEFAULT_MAX_FILE_BYTES:
+        return MAX_FILE_BYTES
+    sources = ROOT / "sources.yaml"
+    if not sources.exists():
+        return MAX_FILE_BYTES
+    try:
+        config = yaml.safe_load(sources.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return MAX_FILE_BYTES
+    safety = config.get("safety") if isinstance(config, dict) else None
+    if isinstance(safety, dict) and isinstance(safety.get("max_file_bytes"), int):
+        return int(safety["max_file_bytes"])
+    return MAX_FILE_BYTES
+
+
 def validate_nested_path(path: Path, skill_dir: Path) -> None:
     rel = path.relative_to(skill_dir)
     if any(part.startswith(".") for part in rel.parts):
         raise ValueError(f"Hidden path not allowed in generated skill: {path}")
     if path.is_symlink():
         raise ValueError(f"Symlink not allowed in generated skill: {path}")
-    if path.is_file() and path.stat().st_size > MAX_FILE_BYTES:
+    max_file_bytes = configured_max_file_bytes()
+    if path.is_file() and path.stat().st_size > max_file_bytes:
         raise ValueError(f"Refusing oversized file in generated skill: {path}")
 
 
