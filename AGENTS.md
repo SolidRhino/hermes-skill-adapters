@@ -35,7 +35,7 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 - `.github/workflows/sync.yml` — scheduled/manual sync + PR.
 - `.github/actions/setup/action.yml` — composite action for shared CI/sync setup.
 - `.github/dependabot.yml` — weekly dependency updates for GitHub Actions and pip.
-- `Makefile` — convenience targets: `sync`, `check`, `test`, `lint`, `validate`, `validate-sources`, `clean`.
+- `justfile` — convenience recipes: `sync`, `check`, `test`, `lint`, `validate`, `validate-sources`, `clean`, `ci`.
 - `pyproject.toml` — project metadata, dependencies, and `[project.scripts]` entry points.
 - `uv.lock` — locked dependency versions.
 
@@ -45,12 +45,13 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 # Setup
 uv sync --extra test --locked
 
-# Using Makefile (recommended)
-make sync
-make check
-make test
-make validate
-make validate-sources
+# Using justfile (recommended)
+just sync
+just check
+just test
+just validate
+just validate-sources
+just ci
 
 # Using entry points (after pip install -e .)
 hermes-skill-sync sync
