@@ -12,6 +12,7 @@ overlays/<skill>/             # manual Hermes metadata and notes
 skills/<skill>/               # generated Hermes-compatible skill output
 scripts/sync_skills.py        # clone/copy/write generated skill output
 scripts/generate_frontmatter.py # deterministic + GitHub Models metadata generation
+scripts/validate_sources.py   # sources.yaml schema validation
 scripts/validate_skills.py    # Hermes skill output validation
 .github/workflows/sync.yml    # scheduled/manual upstream sync PR workflow
 ```
@@ -22,6 +23,12 @@ Sync all configured skills:
 
 ```bash
 python3 scripts/sync_skills.py
+```
+
+Validate `sources.yaml`:
+
+```bash
+python3 scripts/validate_sources.py
 ```
 
 Improve generated metadata with GitHub Models and cache the result under `overlays/<skill>/generated-metadata.yaml`:
@@ -46,6 +53,12 @@ Validate generated Hermes skill directories:
 
 ```bash
 python3 scripts/validate_skills.py
+```
+
+Run unit tests:
+
+```bash
+python3 -m pytest
 ```
 
 ## Hermes installation

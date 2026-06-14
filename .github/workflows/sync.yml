@@ -24,7 +24,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyyaml
+          pip install -e ".[test]"
+
+      - name: Test
+        run: |
+          python -m py_compile scripts/*.py
+          python scripts/validate_sources.py
+          pytest
 
       - name: Sync skills
         env:

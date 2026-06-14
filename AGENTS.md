@@ -26,6 +26,7 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 - `overlays/<skill>/generated-metadata.yaml` — sanitized GitHub Models metadata cache.
 - `scripts/sync_skills.py` — clone/copy/write generated skill output.
 - `scripts/generate_frontmatter.py` — deterministic + GitHub Models metadata generation.
+- `scripts/validate_sources.py` — sources.yaml schema validation.
 - `scripts/validate_skills.py` — Hermes skill output validation.
 - `.github/workflows/sync.yml` — scheduled/manual sync workflow.
 
@@ -34,7 +35,9 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 ```bash
 python3 scripts/sync_skills.py
 python3 scripts/sync_skills.py --check
+python3 scripts/validate_sources.py
 python3 scripts/validate_skills.py
+python3 -m pytest
 GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models
 GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models --refresh-ai-cache
 ```
