@@ -23,6 +23,7 @@ from typing import Any
 import yaml
 
 from generate_frontmatter import DEFAULT_GITHUB_MODEL, dump_frontmatter, generate_frontmatter, load_yaml
+from validate_sources import validate_sources
 from validate_skills import validate_relative_path, validate_skill_dir
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -151,10 +152,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    config = load_yaml(SOURCES)
-    entries = config.get("skills") or []
-    if not entries:
-        raise SystemExit("No skills configured in sources.yaml")
+    entries = validate_sources(load_yaml(SOURCES))
 
     before = snapshot_generated() if args.check else {}
     with tempfile.TemporaryDirectory(prefix="hermes-skill-adapters-") as td:
