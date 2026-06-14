@@ -1,0 +1,39 @@
+name: Sync upstream skills
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+  models: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Sync skills
+        run: |
+          python scripts/sync_skills.py
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: sync upstream skills"
+          title: "chore: sync upstream skills"
+          body: "Automated upstream skill sync and Hermes compatibility generation."
+          branch: chore/sync-upstream-skills

@@ -1,0 +1,29 @@
+skills:
+  - name: literate-programming
+    upstream:
+      repo: tlehman/litprog-skill
+      ref: main
+      path: .
+    target: skills/literate-programming
+    include:
+      - SKILL.md
+      - scripts/
+      - references/
+      - assets/
+    frontmatter:
+      mode: auto
+      overrides:
+        name: literate-programming
+        author: Tobi Lehman
+        license: unknown
+        platforms:
+          - linux
+          - macos
+          - windows
+        metadata:
+          hermes:
+            category: software-development
+            homepage: https://github.com/tlehman/litprog-skill
+            upstream: https://github.com/tlehman/litprog-skill
+            source_repo: tlehman/litprog-skill
+    append_notes: overlays/literate-programming/hermes-notes.md
