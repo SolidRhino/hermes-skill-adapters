@@ -27,8 +27,11 @@ jobs:
           pip install pyyaml
 
       - name: Sync skills
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_MODEL: openai/gpt-4o-mini
         run: |
-          python scripts/sync_skills.py
+          python scripts/sync_skills.py --use-github-models
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6

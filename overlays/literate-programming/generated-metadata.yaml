@@ -1,0 +1,11 @@
+category: software-development
+tags:
+- literate-programming
+- documentation
+- code-analysis
+- source-code
+- pdf-generation
+- narrative-structure
+required_commands: []
+description: Transform a codebase into a literate program, producing both human-readable
+  documentation and runnable source code.
