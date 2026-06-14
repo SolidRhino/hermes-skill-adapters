@@ -32,7 +32,8 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 ```bash
 python3 scripts/sync_skills.py
 python3 scripts/sync_skills.py --check
-GITHUB_TOKEN=... python3 scripts/sync_skills.py --use-github-models
+GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models
+GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models --refresh-ai-cache
 ```
 
 ## Generated Skill Rules
