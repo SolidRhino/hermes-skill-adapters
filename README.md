@@ -22,6 +22,12 @@ Sync all configured skills:
 python3 scripts/sync_skills.py
 ```
 
+Improve generated metadata with GitHub Models and cache the result under `overlays/<skill>/generated-metadata.yaml`:
+
+```bash
+GITHUB_TOKEN=... python3 scripts/sync_skills.py --use-github-models
+```
+
 Check that generated files are current without writing changes:
 
 ```bash
@@ -46,4 +52,5 @@ hermes skills install <owner>/hermes-skill-adapters/skills/literate-programming
 
 - Upstream repository content is treated as untrusted input.
 - The sync script copies files; it does not execute upstream scripts.
+- GitHub Models output is sanitized and cached before being applied.
 - Automated sync opens pull requests for review instead of directly merging upstream changes.
