@@ -22,43 +22,45 @@ scripts/validate_skills.py    # Hermes skill output validation
 Sync all configured skills:
 
 ```bash
-python3 scripts/sync_skills.py
+uv run python scripts/sync_skills.py sync
 ```
+
+The legacy form still works: `python3 scripts/sync_skills.py`.
 
 Validate `sources.yaml`:
 
 ```bash
-python3 scripts/validate_sources.py
+uv run python scripts/sync_skills.py validate-sources
 ```
 
 Improve generated metadata with GitHub Models and cache the result under `overlays/<skill>/generated-metadata.yaml`:
 
 ```bash
-GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models
+GITHUB_TOKEN=*** uv run python scripts/sync_skills.py sync --use-github-models
 ```
 
 Refresh existing AI metadata caches deliberately:
 
 ```bash
-GITHUB_TOKEN=*** python3 scripts/sync_skills.py --use-github-models --refresh-ai-cache
+GITHUB_TOKEN=*** uv run python scripts/sync_skills.py sync --use-github-models --refresh-ai-cache
 ```
 
 Check that generated files are current without writing changes:
 
 ```bash
-python3 scripts/sync_skills.py --check
+uv run python scripts/sync_skills.py sync --check
 ```
 
 Validate generated Hermes skill directories:
 
 ```bash
-python3 scripts/validate_skills.py
+uv run python scripts/sync_skills.py validate
 ```
 
 Run unit tests:
 
 ```bash
-python3 -m pytest
+uv run pytest
 ```
 
 ## Hermes installation
@@ -78,8 +80,8 @@ hermes skills install <owner>/hermes-skill-adapters/skills/literate-programming
 ## Safety model
 
 - Upstream repository content is treated as untrusted input.
-- The sync script copies files; it does not execute upstream scripts.
-- GitHub Models output is sanitized and cached before being applied.
+- The sync script copies files; it does not execute upstream scripts, follow symlinks, or copy oversized files.
+- GitHub Models output must be strict JSON with only approved keys, then it is sanitized and cached with model/prompt/upstream provenance before being applied.
 - Automated sync opens pull requests for review instead of directly merging upstream changes.
 
 ## Maintenance automation

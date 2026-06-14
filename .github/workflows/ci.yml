@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra test --locked
+
+      - name: Lint workflows
+        run: docker run --rm -v "$PWD:/repo" rhysd/actionlint:latest -color
+
+      - name: Test and validate
+        run: |
+          uv run python -m py_compile scripts/*.py
+          uv run python scripts/sync_skills.py validate-sources
+          uv run python scripts/sync_skills.py validate
+          uv run python scripts/sync_skills.py sync --check
+          uv run pytest

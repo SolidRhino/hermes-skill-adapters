@@ -1,11 +1,20 @@
-category: software-development
-tags:
-- literate-programming
-- documentation
-- code-analysis
-- source-code
-- pdf-generation
-- narrative-structure
-required_commands: []
-description: Transform a codebase into a literate program, producing both human-readable
-  documentation and runnable source code.
+metadata:
+  category: software-development
+  tags:
+  - literate-programming
+  - code-documentation
+  - source-code
+  - weave
+  - tangle
+  - pandoc
+  - mermaid
+  - narrative
+  description: Transform a codebase into a literate program, producing a document
+    that combines prose and runnable source code.
+  required_commands: []
+provenance:
+  model: openai/gpt-4o-mini
+  prompt_version: 2
+  upstream_repo: tlehman/litprog-skill
+  upstream_ref: main
+  upstream_commit: 7ca90701555d4c70d3ac43eb2e405e0b9b9aa8dc
