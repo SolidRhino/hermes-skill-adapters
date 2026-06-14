@@ -16,6 +16,7 @@ VALID_SKILL_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 STANDARD_SUPPORT_DIRS = {"references", "scripts", "templates", "assets"}
 ALLOWED_TOP_LEVEL_FILES = {"SKILL.md"}
+MAX_FILE_BYTES = 2 * 1024 * 1024
 
 
 def validate_relative_path(rel: str) -> str:
@@ -43,6 +44,9 @@ def validate_frontmatter(fm: dict[str, Any], skill_dir: Path) -> None:
     name = fm.get("name")
     if not isinstance(name, str) or not VALID_SKILL_NAME.match(name):
         raise ValueError(f"Invalid skill name in {skill_dir}: {name!r}")
+    expected_name = skill_dir.name.removeprefix("staged-")
+    if name != expected_name:
+        raise ValueError(f"Skill name {name!r} does not match directory {skill_dir.name!r}")
 
     description = fm.get("description")
     if not isinstance(description, str) or len(description.strip()) < 10:
@@ -64,6 +68,32 @@ def validate_frontmatter(fm: dict[str, Any], skill_dir: Path) -> None:
         raise ValueError(f"Missing/invalid metadata.hermes.upstream for {name}")
 
 
+def validate_nested_path(path: Path, skill_dir: Path) -> None:
+    rel = path.relative_to(skill_dir)
+    if any(part.startswith(".") for part in rel.parts):
+        raise ValueError(f"Hidden path not allowed in generated skill: {path}")
+    if path.is_symlink():
+        raise ValueError(f"Symlink not allowed in generated skill: {path}")
+    if path.is_file() and path.stat().st_size > MAX_FILE_BYTES:
+        raise ValueError(f"Refusing oversized file in generated skill: {path}")
+
+
+def validate_skill_tree(skill_dir: Path) -> None:
+    for child in skill_dir.iterdir():
+        validate_nested_path(child, skill_dir)
+        if child.is_dir() and child.name not in STANDARD_SUPPORT_DIRS:
+            raise ValueError(f"Unexpected support directory in generated skill: {child}")
+        if child.is_file() and child.name not in ALLOWED_TOP_LEVEL_FILES:
+            raise ValueError(f"Unexpected top-level file in generated skill: {child}")
+
+    for support_dir in STANDARD_SUPPORT_DIRS:
+        root = skill_dir / support_dir
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*")):
+            validate_nested_path(path, skill_dir)
+
+
 def validate_skill_dir(skill_dir: Path, fm: dict[str, Any] | None = None) -> dict[str, Any]:
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.exists():
@@ -71,17 +101,7 @@ def validate_skill_dir(skill_dir: Path, fm: dict[str, Any] | None = None) -> dic
 
     frontmatter = fm or load_skill_frontmatter(skill_md)
     validate_frontmatter(frontmatter, skill_dir)
-
-    for child in skill_dir.iterdir():
-        if child.name.startswith("."):
-            raise ValueError(f"Hidden path not allowed in generated skill: {child}")
-        if child.is_symlink():
-            raise ValueError(f"Symlink not allowed in generated skill: {child}")
-        if child.is_dir() and child.name not in STANDARD_SUPPORT_DIRS:
-            raise ValueError(f"Unexpected support directory in generated skill: {child}")
-        if child.is_file() and child.name not in ALLOWED_TOP_LEVEL_FILES:
-            raise ValueError(f"Unexpected top-level file in generated skill: {child}")
-
+    validate_skill_tree(skill_dir)
     return frontmatter
 
 

@@ -122,6 +122,31 @@ def test_generate_frontmatter_refreshes_stale_cache(tmp_path: Path, monkeypatch)
     assert gf.load_yaml(cache)["provenance"]["upstream_commit"] == "newsha"
 
 
+def test_collect_context_rejects_traversal(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(gf, "ROOT", tmp_path)
+    (tmp_path / "sources.yaml").write_text(
+        "skills:\n  - name: demo\nheuristics:\n  context_files:\n    - ../secret.txt\n",
+        encoding="utf-8",
+    )
+    src_root = tmp_path / "upstream"
+    src_root.mkdir()
+    (tmp_path / "secret.txt").write_text("SECRET", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsafe"):
+        gf.collect_context(src_root)
+
+
+def test_collect_context_rejects_symlink(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(gf, "ROOT", tmp_path)
+    src_root = tmp_path / "upstream"
+    src_root.mkdir()
+    (src_root / "README-real.md").write_text("ok", encoding="utf-8")
+    (src_root / "README.md").symlink_to(src_root / "README-real.md")
+
+    with pytest.raises(ValueError, match="symlink"):
+        gf.collect_context(src_root)
+
+
 def test_generate_frontmatter_applies_overrides(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(gf, "ROOT", tmp_path)
     src_root = tmp_path / "upstream"

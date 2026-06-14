@@ -47,15 +47,32 @@ GIT_RETRY_DELAY = 1.0
 # ── safe subprocess wrappers ──────────────────────────────────────────────
 
 
-def run(cmd: list[str], cwd: Path | None = None, skill_name: str = "") -> None:
-    """Run a subprocess command with error context."""
-    try:
-        subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as exc:
-        label = f" for skill '{skill_name}'" if skill_name else ""
-        detail = exc.stderr.strip() if exc.stderr else str(exc)
-        raise RuntimeError(f"command failed{label}: {' '.join(cmd)}\n{detail}") from exc
-
+def run(
+    cmd: list[str],
+    cwd: Path | None = None,
+    skill_name: str = "",
+    *,
+    retries: int = 1,
+) -> None:
+    """Run a subprocess command with error context and optional retry."""
+    last_exc: subprocess.CalledProcessError | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
+            return
+        except subprocess.CalledProcessError as exc:
+            last_exc = exc
+            if attempt < retries:
+                delay = GIT_RETRY_DELAY * (2 ** (attempt - 1))
+                print(
+                    f"command attempt {attempt}/{retries} failed for '{skill_name}': "
+                    f"{' '.join(cmd)}; retrying in {delay:.1f}s",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+    label = f" for skill '{skill_name}'" if skill_name else ""
+    detail = last_exc.stderr.strip() if last_exc and last_exc.stderr else str(last_exc)
+    raise RuntimeError(f"command failed{label}: {' '.join(cmd)}\n{detail}")
 
 def git_commit(path: Path, skill_name: str = "") -> str:
     """Get HEAD commit hash with retry for transient network errors."""
@@ -95,6 +112,7 @@ def clone_upstream(
     run(
         ["git", "clone", "--depth", "1", "--branch", ref, f"https://github.com/{repo}.git", str(clone_dir)],
         skill_name=name,
+        retries=GIT_RETRIES,
     )
     src_root = (clone_dir / upstream_path).resolve()
     if not src_root.is_relative_to(clone_dir.resolve()):
@@ -202,10 +220,12 @@ def write_skill(
     use_github_models: bool = False,
     refresh_ai_cache: bool = False,
     model: str = DEFAULT_GITHUB_MODEL,
+    output_root: Path | None = None,
 ) -> None:
     """Clone upstream, stage files, generate frontmatter, validate, and deploy."""
     name = entry["name"]
-    target = ROOT / validate_relative_path(entry["target"])
+    output_root = output_root or ROOT
+    target = output_root / validate_relative_path(entry["target"])
 
     clone_dir, src_root, upstream_commit = clone_upstream(entry, tmpdir)
 
@@ -228,25 +248,27 @@ def write_skill(
         shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(staging), str(target))
-    print(f"synced {name} -> {target.relative_to(ROOT)}")
+    display_target = target.relative_to(output_root)
+    print(f"synced {name} -> {display_target}")
 
 
 # ── snapshot / diff (hash-based) ──────────────────────────────────────────
 
 
-def snapshot_generated(*, include_content: bool = False) -> dict[str, str]:
+def snapshot_generated(*, root: Path | None = None, include_content: bool = False) -> dict[str, str]:
     """Return {relative_path: sha256_hex} for all generated skill files.
 
     When include_content=True, also stores the file content under a
     separate key prefix so diff_snapshots can reconstruct the diff.
     """
-    skills_dir = ROOT / "skills"
+    root = root or ROOT
+    skills_dir = root / "skills"
     if not skills_dir.exists():
         return {}
     out: dict[str, str] = {}
     for path in sorted(skills_dir.rglob("*")):
         if path.is_file():
-            rel = str(path.relative_to(ROOT))
+            rel = str(path.relative_to(root))
             out[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
             if include_content:
                 out[f"__content__{rel}"] = path.read_text(encoding="utf-8", errors="replace")
@@ -297,6 +319,7 @@ def run_sync(args: argparse.Namespace) -> int:
     before = snapshot_generated(include_content=True) if args.check else {}
     with tempfile.TemporaryDirectory(prefix="hermes-skill-adapters-") as td:
         tmpdir = Path(td)
+        output_root = tmpdir / "generated-check" if args.check else ROOT
         for entry in entries:
             write_skill(
                 entry,
@@ -304,34 +327,35 @@ def run_sync(args: argparse.Namespace) -> int:
                 use_github_models=args.use_github_models,
                 refresh_ai_cache=args.refresh_ai_cache,
                 model=args.github_model,
+                output_root=output_root,
             )
 
-    if args.check:
-        after = snapshot_generated()
-        diff = diff_snapshots(before, after)
-        if diff:
-            print(diff)
-            print("generated skills are out of date", file=sys.stderr)
-            return 1
+        if args.check:
+            after = snapshot_generated(root=output_root, include_content=True)
+            diff = diff_snapshots(before, after)
+            if diff:
+                print(diff)
+                print("generated skills are out of date", file=sys.stderr)
+                return 1
     return 0
 
 
 def run_validate(_args: argparse.Namespace) -> int:
-    from validate_skills import main as validate_main
+    from scripts.validate_skills import main as validate_main
 
     return validate_main([])
 
 
 def run_validate_sources(_args: argparse.Namespace) -> int:
-    from validate_sources import main as validate_sources_main
+    from scripts.validate_sources import main as validate_sources_main
 
     return validate_sources_main([])
 
 
 def run_generate_frontmatter(args: argparse.Namespace) -> int:
-    from generate_frontmatter import main as generate_main
+    from scripts.generate_frontmatter import main as generate_main
 
-    argv = ["generate_frontmatter.py", args.source_root, "--entry", args.entry]
+    argv = [args.source_root, "--entry", args.entry]
     if args.use_github_models:
         argv.append("--use-github-models")
     if args.refresh_ai_cache:

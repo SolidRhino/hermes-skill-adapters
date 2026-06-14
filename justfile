@@ -1,26 +1,29 @@
+UV := env_var_or_default("UV", ".venv/bin/uv")
+ACTIONLINT := env_var_or_default("ACTIONLINT", "actionlint")
+
 # Sync upstream skills
 sync:
-    uv run python scripts/sync_skills.py sync
+    {{UV}} run python scripts/sync_skills.py sync
 
 # Check if generated files are up to date
 check:
-    uv run python scripts/sync_skills.py sync --check
+    {{UV}} run python scripts/sync_skills.py sync --check
 
 # Run tests
 test:
-    uv run pytest
+    {{UV}} run pytest
 
-# Lint workflows (requires actionlint in PATH)
+# Lint workflows (requires actionlint in PATH or ACTIONLINT=/path/to/actionlint)
 lint:
-    actionlint -color
+    {{ACTIONLINT}} -color
 
 # Validate generated skills
 validate:
-    uv run python scripts/sync_skills.py validate
+    {{UV}} run python scripts/sync_skills.py validate
 
 # Validate sources.yaml
 validate-sources:
-    uv run python scripts/sync_skills.py validate-sources
+    {{UV}} run python scripts/sync_skills.py validate-sources
 
 # Remove generated skills
 clean:
