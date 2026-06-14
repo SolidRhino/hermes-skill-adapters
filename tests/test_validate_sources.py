@@ -28,11 +28,11 @@ def test_validate_sources_accepts_valid_config() -> None:
     assert entries[0]["name"] == "demo-skill"
 
 
-def test_validate_sources_accepts_examples_docs_configs() -> None:
+def test_validate_sources_rejects_non_hermes_support_dirs() -> None:
     config = valid_config()
     config["skills"][0]["include"] = ["SKILL.md", "examples/", "docs/", "configs/"]
-    entries = vs.validate_sources(config)
-    assert entries[0]["name"] == "demo-skill"
+    with pytest.raises(ValueError, match="not allowed"):
+        vs.validate_sources(config)
 
 
 @pytest.mark.parametrize(

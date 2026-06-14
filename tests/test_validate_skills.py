@@ -100,10 +100,44 @@ def test_validate_skill_dir_rejects_hidden_directory(tmp_path: Path) -> None:
 def test_validate_skill_dir_rejects_symlink(tmp_path: Path) -> None:
     skill = tmp_path / "demo-skill"
     write_skill(skill)
-    (skill / "real.txt").write_text("ok", encoding="utf-8")
-    (skill / "link.txt").symlink_to(skill / "real.txt")
+    (skill / "link.txt").symlink_to(skill / "SKILL.md")
 
     with pytest.raises(ValueError, match="Symlink"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_nested_hidden_file(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(skill)
+    scripts = skill / "scripts"
+    scripts.mkdir()
+    (scripts / ".env").write_text("SECRET=***", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Hidden path"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_nested_symlink(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(skill)
+    scripts = skill / "scripts"
+    scripts.mkdir()
+    (scripts / "real.py").write_text("print('ok')", encoding="utf-8")
+    (scripts / "link.py").symlink_to(scripts / "real.py")
+
+    with pytest.raises(ValueError, match="Symlink"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_nested_oversized_file(tmp_path: Path, monkeypatch) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(skill)
+    scripts = skill / "scripts"
+    scripts.mkdir()
+    (scripts / "big.txt").write_bytes(b"x" * 11)
+    monkeypatch.setattr(val, "MAX_FILE_BYTES", 10)
+
+    with pytest.raises(ValueError, match="oversized"):
         val.validate_skill_dir(skill)
 
 
@@ -147,6 +181,28 @@ metadata:
     )
 
     with pytest.raises(ValueError, match="upstream"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_name_mismatch(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(
+        skill,
+        """---
+name: other-skill
+description: Demo skill for validation tests.
+metadata:
+  hermes:
+    tags:
+      - demo
+    upstream: https://github.com/owner/demo-skill
+---
+
+# Demo
+""",
+    )
+
+    with pytest.raises(ValueError, match="does not match directory"):
         val.validate_skill_dir(skill)
 
 

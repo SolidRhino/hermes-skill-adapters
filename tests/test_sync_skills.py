@@ -68,6 +68,23 @@ def test_main_supports_sync_subcommand(monkeypatch) -> None:
     assert called == {"check": True}
 
 
+def test_run_generate_frontmatter_passes_argv_without_program_name(monkeypatch) -> None:
+    captured = {}
+
+    def fake_generate_main(argv):
+        captured["argv"] = argv
+        return 0
+
+    import scripts.generate_frontmatter as gf
+
+    monkeypatch.setattr(gf, "main", fake_generate_main)
+    parser = sync.build_parser()
+    args = parser.parse_args(["generate-frontmatter", "/tmp/src", "--entry", "/tmp/entry.yaml"])
+
+    assert args.func(args) == 0
+    assert captured["argv"] == ["/tmp/src", "--entry", "/tmp/entry.yaml", "--github-model", sync.DEFAULT_GITHUB_MODEL]
+
+
 def test_snapshot_generated_uses_hashes(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(sync, "ROOT", tmp_path)
     skills = tmp_path / "skills" / "demo-skill"
@@ -79,7 +96,6 @@ def test_snapshot_generated_uses_hashes(tmp_path: Path, monkeypatch) -> None:
     assert len(snap) == 1
     key = list(snap.keys())[0]
     assert key.endswith("SKILL.md")
-    # sha256 hex is 64 chars
     assert len(snap[key]) == 64
 
 
@@ -143,14 +159,61 @@ def test_assemble_skill_writes_frontmatter_and_body(tmp_path: Path, monkeypatch)
     assert "# Body" in result
 
 
+def test_run_retries_transient_failures(monkeypatch) -> None:
+    calls = {"count": 0}
+
+    def fake_run(*args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise subprocess.CalledProcessError(1, args[0], stderr="temporary")
+        return subprocess.CompletedProcess(args[0], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(sync.subprocess, "run", fake_run)
+    monkeypatch.setattr(sync.time, "sleep", lambda _delay: None)
+
+    sync.run(["git", "clone", "repo"], retries=3, skill_name="demo")
+
+    assert calls["count"] == 3
+
+
+def test_check_mode_does_not_modify_existing_generated_files(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(sync, "ROOT", tmp_path)
+    sources = tmp_path / "sources.yaml"
+    sources.write_text(
+        yaml.safe_dump({
+            "skills": [{
+                "name": "demo-skill",
+                "upstream": {"repo": "owner/demo-skill", "ref": "main", "path": "."},
+                "target": "skills/demo-skill",
+                "include": ["SKILL.md"],
+            }]
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sync, "SOURCES", sources)
+
+    existing = tmp_path / "skills" / "demo-skill"
+    existing.mkdir(parents=True)
+    (existing / "SKILL.md").write_text("existing content", encoding="utf-8")
+
+    def fake_write_skill(entry, tmpdir, *, output_root, **kwargs):
+        target = output_root / entry["target"]
+        target.mkdir(parents=True)
+        (target / "SKILL.md").write_text("new generated content", encoding="utf-8")
+
+    monkeypatch.setattr(sync, "write_skill", fake_write_skill)
+
+    args = sync.build_parser().parse_args(["sync", "--check"])
+    assert sync.run_sync(args) == 1
+    assert (existing / "SKILL.md").read_text(encoding="utf-8") == "existing content"
+
+
 # ── integration test: full pipeline with a local git repo ─────────────────
 
 
 def test_full_pipeline_with_local_upstream(tmp_path: Path, monkeypatch) -> None:
-    """End-to-end: create a local git repo as upstream, sync it, validate output."""
     monkeypatch.setattr(sync, "ROOT", tmp_path)
 
-    # Create a fake upstream git repo
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     (upstream / "SKILL.md").write_text(
@@ -169,7 +232,6 @@ def test_full_pipeline_with_local_upstream(tmp_path: Path, monkeypatch) -> None:
     subprocess.run(["git", "add", "."], cwd=upstream, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "init"], cwd=upstream, check=True, capture_output=True)
 
-    # Write sources.yaml
     sources = tmp_path / "sources.yaml"
     sources.write_text(
         yaml.safe_dump({
@@ -184,9 +246,6 @@ def test_full_pipeline_with_local_upstream(tmp_path: Path, monkeypatch) -> None:
     )
     monkeypatch.setattr(sync, "SOURCES", sources)
 
-    # Monkeypatch clone_upstream to use our local repo
-    original_clone = sync.clone_upstream
-
     def fake_clone(entry, tmpdir):
         name = entry["name"]
         clone_dir = tmpdir / name
@@ -199,17 +258,14 @@ def test_full_pipeline_with_local_upstream(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(sync, "clone_upstream", fake_clone)
 
-    # Run sync
     exit_code = sync.main(["sync"])
     assert exit_code == 0
 
-    # Verify output
     skill_dir = tmp_path / "skills" / "fake-skill"
     assert skill_dir.is_dir()
     assert (skill_dir / "SKILL.md").exists()
     assert (skill_dir / "scripts" / "weave.sh").exists()
 
-    # Validate
     from validate_skills import validate_skill_dir
     fm = validate_skill_dir(skill_dir)
     assert fm["name"] == "fake-skill"

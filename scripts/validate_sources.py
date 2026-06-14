@@ -24,7 +24,7 @@ VALID_SKILL_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 VALID_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 VALID_FRONTMATTER_MODES = {"auto", "github-models", "ai"}
 ALLOWED_INCLUDE_FILES = {"SKILL.md", "README.md", "LICENSE", "LICENSE.md"}
-ALLOWED_INCLUDE_DIRS = {"scripts/", "references/", "assets/", "templates/", "examples/", "docs/", "configs/"}
+ALLOWED_INCLUDE_DIRS = {"scripts/", "references/", "assets/", "templates/"}
 
 
 def load_yaml(path: Path) -> Any:

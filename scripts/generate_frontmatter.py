@@ -130,11 +130,22 @@ def get_context_files() -> list[str]:
 # ── context collection ────────────────────────────────────────────────────
 
 
+def safe_context_path(src_root: Path, rel: str) -> Path:
+    rel = validate_relative_path(rel)
+    candidate = src_root / rel
+    if candidate.is_symlink():
+        raise ValueError(f"Refusing to read symlink context file: {rel}")
+    path = candidate.resolve()
+    if not path.is_relative_to(src_root.resolve()):
+        raise ValueError(f"Unsafe context path escaped upstream root: {rel!r}")
+    return path
+
+
 def collect_context(src_root: Path) -> str:
     chunks: list[str] = []
     for rel in get_context_files():
-        path = src_root / rel
-        if path.exists() and path.is_file() and not path.is_symlink():
+        path = safe_context_path(src_root, rel)
+        if path.exists() and path.is_file():
             chunks.append(path.read_text(encoding="utf-8", errors="replace")[:6000])
     return "\n\n".join(chunks)
 
