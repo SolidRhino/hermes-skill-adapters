@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solidrhino.github.io/hermes-skill-adapters/schema.json",
+  "title": "Hermes Skill Adapters — sources.yaml",
+  "description": "Schema for the sources.yaml manifest that defines upstream skills to sync.",
+  "type": "object",
+  "required": ["skills"],
+  "properties": {
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "upstream", "target", "include"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$",
+            "description": "Lowercase kebab-case skill name."
+          },
+          "upstream": {
+            "type": "object",
+            "required": ["repo"],
+            "properties": {
+              "repo": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                "description": "GitHub owner/repo."
+              },
+              "ref": {
+                "type": "string",
+                "default": "main",
+                "description": "Git branch or tag."
+              },
+              "path": {
+                "type": "string",
+                "default": ".",
+                "description": "Subdirectory within the repo containing the skill."
+              }
+            }
+          },
+          "target": {
+            "type": "string",
+            "description": "Output path relative to repo root, e.g. skills/literate-programming."
+          },
+          "include": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "description": "File or directory to copy from upstream."
+            }
+          },
+          "frontmatter": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["auto", "github-models", "ai"],
+                "default": "auto"
+              },
+              "ai_cache": {
+                "type": "string",
+                "description": "Path to AI metadata cache file, e.g. overlays/skill/generated-metadata.yaml."
+              },
+              "overrides": {
+                "type": "object",
+                "description": "Manual overrides merged on top of generated frontmatter."
+              }
+            }
+          },
+          "append_notes": {
+            "type": "string",
+            "description": "Path to a markdown file appended to the generated SKILL.md."
+          }
+        }
+      }
+    },
+    "heuristics": {
+      "type": "object",
+      "description": "Optional heuristics configuration for frontmatter generation.",
+      "properties": {
+        "context_files": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Upstream files to read for context (default: README.md, SKILL.md)."
+        },
+        "known_commands": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Command names to detect in upstream content."
+        },
+        "keyword_tags": {
+          "type": "object",
+          "additionalProperties": {"type": "string"},
+          "description": "Keyword → tag mapping for heuristic tag inference."
+        }
+      }
+    }
+  }
+}

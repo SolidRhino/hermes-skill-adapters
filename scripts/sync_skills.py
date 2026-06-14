@@ -11,20 +11,28 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from generate_frontmatter import DEFAULT_GITHUB_MODEL, dump_frontmatter, generate_frontmatter, load_yaml
-from validate_sources import validate_sources
-from validate_skills import validate_relative_path, validate_skill_dir
+# Allow direct script invocation: ensure project root is on sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.generate_frontmatter import DEFAULT_GITHUB_MODEL, dump_frontmatter, generate_frontmatter, load_yaml
+from scripts.validate_sources import validate_sources
+from scripts.validate_skills import validate_relative_path, validate_skill_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "sources.yaml"
@@ -32,18 +40,74 @@ FRONTMATTER_RE = re.compile(r"\A---\s*\n.*?\n---\s*\n", re.DOTALL)
 IGNORED_DIRS = {".git", "node_modules", "dist"}
 MAX_FILE_BYTES = 2 * 1024 * 1024
 SUBCOMMANDS = {"sync", "validate", "validate-sources", "generate-frontmatter"}
+GIT_RETRIES = 3
+GIT_RETRY_DELAY = 1.0
 
 
-def run(cmd: list[str], cwd: Path | None = None) -> None:
-    subprocess.run(cmd, cwd=cwd, check=True)
+# ── safe subprocess wrappers ──────────────────────────────────────────────
+
+
+def run(cmd: list[str], cwd: Path | None = None, skill_name: str = "") -> None:
+    """Run a subprocess command with error context."""
+    try:
+        subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        label = f" for skill '{skill_name}'" if skill_name else ""
+        detail = exc.stderr.strip() if exc.stderr else str(exc)
+        raise RuntimeError(f"command failed{label}: {' '.join(cmd)}\n{detail}") from exc
+
+
+def git_commit(path: Path, skill_name: str = "") -> str:
+    """Get HEAD commit hash with retry for transient network errors."""
+    last_exc: Exception | None = None
+    for attempt in range(1, GIT_RETRIES + 1):
+        try:
+            return subprocess.check_output(
+                ["git", "-C", str(path), "rev-parse", "HEAD"],
+                text=True,
+                stderr=subprocess.PIPE,
+            ).strip()
+        except subprocess.CalledProcessError as exc:
+            last_exc = exc
+            if attempt < GIT_RETRIES:
+                delay = GIT_RETRY_DELAY * (2 ** (attempt - 1))
+                print(
+                    f"git_commit attempt {attempt}/{GIT_RETRIES} failed for "
+                    f"'{skill_name}': {exc.stderr.strip()}; retrying in {delay:.1f}s",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+    label = f" for skill '{skill_name}'" if skill_name else ""
+    detail = last_exc.stderr.strip() if last_exc and last_exc.stderr else str(last_exc)
+    raise RuntimeError(f"git rev-parse failed{label} after {GIT_RETRIES} attempts: {detail}")
+
+
+def clone_upstream(
+    entry: dict[str, Any], tmpdir: Path
+) -> tuple[Path, Path, str]:
+    """Clone upstream repo, return (clone_dir, src_root, upstream_commit)."""
+    name = entry["name"]
+    repo = entry["upstream"]["repo"]
+    ref = entry["upstream"].get("ref", "main")
+    upstream_path = validate_relative_path(entry["upstream"].get("path", "."))
+    clone_dir = tmpdir / name
+
+    run(
+        ["git", "clone", "--depth", "1", "--branch", ref, f"https://github.com/{repo}.git", str(clone_dir)],
+        skill_name=name,
+    )
+    src_root = (clone_dir / upstream_path).resolve()
+    if not src_root.is_relative_to(clone_dir.resolve()):
+        raise ValueError(f"Unsafe upstream path for {name}: {upstream_path}")
+    upstream_commit = git_commit(clone_dir, skill_name=name)
+    return clone_dir, src_root, upstream_commit
+
+
+# ── safe file copy ─────────────────────────────────────────────────────────
 
 
 def strip_frontmatter(text: str) -> str:
     return FRONTMATTER_RE.sub("", text, count=1).lstrip()
-
-
-def git_commit(path: Path) -> str:
-    return subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True).strip()
 
 
 def ensure_under_root(path: Path, root: Path) -> None:
@@ -102,42 +166,22 @@ def copy_include(src_root: Path, dest_root: Path, rel: str) -> None:
         raise ValueError(f"Refusing to copy unsupported upstream path type: {rel}")
 
 
-def write_skill(
-    entry: dict[str, Any],
-    tmpdir: Path,
-    *,
-    use_github_models: bool = False,
-    refresh_ai_cache: bool = False,
-    model: str = DEFAULT_GITHUB_MODEL,
-) -> None:
-    name = entry["name"]
-    repo = entry["upstream"]["repo"]
-    ref = entry["upstream"].get("ref", "main")
-    upstream_path = validate_relative_path(entry["upstream"].get("path", "."))
-    target = ROOT / validate_relative_path(entry["target"])
-    clone_dir = tmpdir / name
+# ── skill assembly ────────────────────────────────────────────────────────
 
-    run(["git", "clone", "--depth", "1", "--branch", ref, f"https://github.com/{repo}.git", str(clone_dir)])
-    src_root = (clone_dir / upstream_path).resolve()
-    if not src_root.is_relative_to(clone_dir.resolve()):
-        raise ValueError(f"Unsafe upstream path for {name}: {upstream_path}")
-    upstream_commit = git_commit(clone_dir)
 
-    staging = tmpdir / f"staged-{name}"
+def stage_files(entry: dict[str, Any], src_root: Path, staging: Path) -> None:
+    """Copy included upstream files into staging directory."""
     staging.mkdir(parents=True, exist_ok=True)
     for rel in entry.get("include") or ["SKILL.md"]:
         copy_include(src_root, staging, rel)
 
-    fm = generate_frontmatter(
-        entry,
-        src_root,
-        use_github_models=use_github_models,
-        refresh_ai_cache=refresh_ai_cache,
-        model=model,
-        upstream_commit=upstream_commit,
-    )
-    validate_skill_dir(staging, fm)
 
+def assemble_skill(
+    entry: dict[str, Any],
+    staging: Path,
+    fm: dict[str, Any],
+) -> None:
+    """Write Hermes-compatible SKILL.md into staging directory."""
     skill_md = staging / "SKILL.md"
     body = strip_frontmatter(skill_md.read_text(encoding="utf-8", errors="replace"))
     append_notes = entry.get("append_notes")
@@ -149,6 +193,35 @@ def write_skill(
                 body = body.rstrip() + "\n\n" + notes.strip() + "\n"
 
     skill_md.write_text("---\n" + dump_frontmatter(fm) + "---\n\n" + body, encoding="utf-8")
+
+
+def write_skill(
+    entry: dict[str, Any],
+    tmpdir: Path,
+    *,
+    use_github_models: bool = False,
+    refresh_ai_cache: bool = False,
+    model: str = DEFAULT_GITHUB_MODEL,
+) -> None:
+    """Clone upstream, stage files, generate frontmatter, validate, and deploy."""
+    name = entry["name"]
+    target = ROOT / validate_relative_path(entry["target"])
+
+    clone_dir, src_root, upstream_commit = clone_upstream(entry, tmpdir)
+
+    staging = tmpdir / f"staged-{name}"
+    stage_files(entry, src_root, staging)
+
+    fm = generate_frontmatter(
+        entry,
+        src_root,
+        use_github_models=use_github_models,
+        refresh_ai_cache=refresh_ai_cache,
+        model=model,
+        upstream_commit=upstream_commit,
+    )
+    validate_skill_dir(staging, fm)
+    assemble_skill(entry, staging, fm)
     validate_skill_dir(staging, fm)
 
     if target.exists():
@@ -158,27 +231,46 @@ def write_skill(
     print(f"synced {name} -> {target.relative_to(ROOT)}")
 
 
-def snapshot_generated() -> dict[str, str]:
+# ── snapshot / diff (hash-based) ──────────────────────────────────────────
+
+
+def snapshot_generated(*, include_content: bool = False) -> dict[str, str]:
+    """Return {relative_path: sha256_hex} for all generated skill files.
+
+    When include_content=True, also stores the file content under a
+    separate key prefix so diff_snapshots can reconstruct the diff.
+    """
     skills_dir = ROOT / "skills"
     if not skills_dir.exists():
         return {}
     out: dict[str, str] = {}
     for path in sorted(skills_dir.rglob("*")):
         if path.is_file():
-            out[str(path.relative_to(ROOT))] = path.read_text(encoding="utf-8", errors="replace")
+            rel = str(path.relative_to(ROOT))
+            out[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+            if include_content:
+                out[f"__content__{rel}"] = path.read_text(encoding="utf-8", errors="replace")
     return out
 
 
 def diff_snapshots(before: dict[str, str], after: dict[str, str]) -> str:
+    """Return unified diff of files whose hash changed."""
     lines: list[str] = []
-    keys = sorted(set(before) | set(after))
+    keys = sorted(
+        {k for k in set(before) | set(after) if not k.startswith("__content__")}
+    )
     for key in keys:
         if before.get(key) == after.get(key):
             continue
-        old = before.get(key, "").splitlines(keepends=True)
-        new = after.get(key, "").splitlines(keepends=True)
-        lines.extend(difflib.unified_diff(old, new, fromfile=f"before/{key}", tofile=f"after/{key}"))
+        old_text = before.get(f"__content__{key}", "")
+        new_text = after.get(f"__content__{key}", "")
+        old_lines = old_text.splitlines(keepends=True)
+        new_lines = new_text.splitlines(keepends=True)
+        lines.extend(difflib.unified_diff(old_lines, new_lines, fromfile=f"before/{key}", tofile=f"after/{key}"))
     return "".join(lines)
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────
 
 
 def add_sync_args(parser: argparse.ArgumentParser) -> None:
@@ -202,7 +294,7 @@ def add_sync_args(parser: argparse.ArgumentParser) -> None:
 
 def run_sync(args: argparse.Namespace) -> int:
     entries = validate_sources(load_yaml(SOURCES))
-    before = snapshot_generated() if args.check else {}
+    before = snapshot_generated(include_content=True) if args.check else {}
     with tempfile.TemporaryDirectory(prefix="hermes-skill-adapters-") as td:
         tmpdir = Path(td)
         for entry in entries:
@@ -224,30 +316,28 @@ def run_sync(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_validate(_: argparse.Namespace) -> int:
+def run_validate(_args: argparse.Namespace) -> int:
     from validate_skills import main as validate_main
 
-    sys.argv = ["validate_skills.py"]
-    return validate_main()
+    return validate_main([])
 
 
-def run_validate_sources(_: argparse.Namespace) -> int:
+def run_validate_sources(_args: argparse.Namespace) -> int:
     from validate_sources import main as validate_sources_main
 
-    sys.argv = ["validate_sources.py"]
-    return validate_sources_main()
+    return validate_sources_main([])
 
 
 def run_generate_frontmatter(args: argparse.Namespace) -> int:
     from generate_frontmatter import main as generate_main
 
-    sys.argv = ["generate_frontmatter.py", args.source_root, "--entry", args.entry]
+    argv = ["generate_frontmatter.py", args.source_root, "--entry", args.entry]
     if args.use_github_models:
-        sys.argv.append("--use-github-models")
+        argv.append("--use-github-models")
     if args.refresh_ai_cache:
-        sys.argv.append("--refresh-ai-cache")
-    sys.argv.extend(["--github-model", args.github_model])
-    return generate_main()
+        argv.append("--refresh-ai-cache")
+    argv.extend(["--github-model", args.github_model])
+    return generate_main(argv)
 
 
 def build_parser() -> argparse.ArgumentParser:

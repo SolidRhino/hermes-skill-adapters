@@ -77,3 +77,82 @@ metadata:
 
     with pytest.raises(ValueError, match="upstream"):
         val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_hidden_file(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(skill)
+    (skill / ".gitkeep").write_text("", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Hidden path"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_hidden_directory(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(skill)
+    (skill / ".hidden").mkdir()
+
+    with pytest.raises(ValueError, match="Hidden path"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_symlink(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(skill)
+    (skill / "real.txt").write_text("ok", encoding="utf-8")
+    (skill / "link.txt").symlink_to(skill / "real.txt")
+
+    with pytest.raises(ValueError, match="Symlink"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_empty_tags(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(
+        skill,
+        """---
+name: demo-skill
+description: Demo skill for validation tests.
+metadata:
+  hermes:
+    tags: []
+    upstream: https://github.com/owner/demo-skill
+---
+
+# Demo
+""",
+    )
+
+    with pytest.raises(ValueError, match="tags"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_ftp_upstream(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    write_skill(
+        skill,
+        """---
+name: demo-skill
+description: Demo skill for validation tests.
+metadata:
+  hermes:
+    tags:
+      - demo
+    upstream: ftp://example.com/skill
+---
+
+# Demo
+""",
+    )
+
+    with pytest.raises(ValueError, match="upstream"):
+        val.validate_skill_dir(skill)
+
+
+def test_validate_skill_dir_rejects_missing_skill_md(tmp_path: Path) -> None:
+    skill = tmp_path / "demo-skill"
+    skill.mkdir()
+
+    with pytest.raises(ValueError, match="Missing SKILL.md"):
+        val.validate_skill_dir(skill)

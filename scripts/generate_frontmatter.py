@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -17,14 +18,25 @@ from typing import Any
 
 import yaml
 
-from validate_skills import validate_relative_path
+# Allow direct script invocation: ensure project root is on sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validate_skills import validate_relative_path
 
 ROOT = Path(__file__).resolve().parents[1]
 GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 DEFAULT_GITHUB_MODEL = "openai/gpt-4o-mini"
 PROMPT_VERSION = 2
 ALLOWED_AI_KEYS = {"description", "tags", "category", "required_commands"}
-KEYWORD_TAGS = {
+AI_RETRIES = 3
+AI_RETRY_DELAY = 1.0
+
+# ── defaults (overridable via sources.yaml heuristics section) ────────────
+
+DEFAULT_KEYWORD_TAGS: dict[str, str] = {
     "literate": "literate-programming",
     "pandoc": "pandoc",
     "mermaid": "mermaid",
@@ -38,7 +50,8 @@ KEYWORD_TAGS = {
     "reverse-sync": "reverse-sync",
     "hook": "hooks",
 }
-COMMANDS = ["bun", "pandoc", "xelatex", "mermaid-filter", "node", "npm", "python", "uv"]
+DEFAULT_COMMANDS: list[str] = ["bun", "pandoc", "xelatex", "mermaid-filter", "node", "npm", "python", "uv"]
+DEFAULT_CONTEXT_FILES: list[str] = ["README.md", "SKILL.md"]
 
 
 def load_yaml(path: Path) -> Any:
@@ -75,9 +88,51 @@ def first_meaningful_sentence(text: str) -> str:
     return "Hermes-compatible packaging for an upstream agent skill."
 
 
+# ── config loading ────────────────────────────────────────────────────────
+
+
+def _load_heuristics_config() -> dict[str, Any]:
+    """Load heuristics configuration from sources.yaml, falling back to defaults."""
+    try:
+        sources = load_yaml(ROOT / "sources.yaml")
+    except (OSError, yaml.YAMLError):
+        return {}
+    heuristics = sources.get("heuristics") or {}
+    if not isinstance(heuristics, dict):
+        return {}
+    return heuristics
+
+
+def get_keyword_tags() -> dict[str, str]:
+    cfg = _load_heuristics_config()
+    custom = cfg.get("keyword_tags")
+    if isinstance(custom, dict):
+        return {str(k): str(v) for k, v in custom.items()}
+    return dict(DEFAULT_KEYWORD_TAGS)
+
+
+def get_known_commands() -> list[str]:
+    cfg = _load_heuristics_config()
+    custom = cfg.get("known_commands")
+    if isinstance(custom, list):
+        return [str(c) for c in custom if isinstance(c, str)]
+    return list(DEFAULT_COMMANDS)
+
+
+def get_context_files() -> list[str]:
+    cfg = _load_heuristics_config()
+    custom = cfg.get("context_files")
+    if isinstance(custom, list):
+        return [str(c) for c in custom if isinstance(c, str)]
+    return list(DEFAULT_CONTEXT_FILES)
+
+
+# ── context collection ────────────────────────────────────────────────────
+
+
 def collect_context(src_root: Path) -> str:
     chunks: list[str] = []
-    for rel in ["README.md", "SKILL.md"]:
+    for rel in get_context_files():
         path = src_root / rel
         if path.exists() and path.is_file() and not path.is_symlink():
             chunks.append(path.read_text(encoding="utf-8", errors="replace")[:6000])
@@ -87,7 +142,8 @@ def collect_context(src_root: Path) -> str:
 def infer_tags(context: str, include: list[str]) -> list[str]:
     haystack = (context + "\n" + "\n".join(include)).lower()
     tags: list[str] = []
-    for needle, tag in KEYWORD_TAGS.items():
+    keyword_tags = get_keyword_tags()
+    for needle, tag in keyword_tags.items():
         if needle in haystack and tag not in tags:
             tags.append(tag)
     if "documentation" not in tags:
@@ -98,10 +154,13 @@ def infer_tags(context: str, include: list[str]) -> list[str]:
 def infer_required_commands(context: str) -> list[str]:
     found: list[str] = []
     lowered = context.lower()
-    for command in COMMANDS:
+    for command in get_known_commands():
         if re.search(rf"\b{re.escape(command.lower())}\b", lowered):
             found.append(command)
     return found
+
+
+# ── AI metadata ───────────────────────────────────────────────────────────
 
 
 def strict_json_object(text: str) -> dict[str, Any]:
@@ -178,6 +237,7 @@ def sanitize_ai_metadata(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def generate_ai_metadata(context: str, repo: str, model: str) -> dict[str, Any]:
+    """Call GitHub Models with exponential backoff retry."""
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("warning: GITHUB_TOKEN not set; falling back to heuristic frontmatter", file=sys.stderr)
@@ -214,30 +274,40 @@ def generate_ai_metadata(context: str, repo: str, model: str) -> dict[str, Any]:
             },
         ],
     }
-    req = urllib.request.Request(
-        GITHUB_MODELS_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        print(f"warning: GitHub Models request failed: {exc}; falling back", file=sys.stderr)
-        return {}
 
-    try:
-        content = body["choices"][0]["message"]["content"]
-        return sanitize_ai_metadata(strict_json_object(content))
-    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        print(f"warning: invalid GitHub Models response: {exc}; falling back", file=sys.stderr)
-        return {}
+    last_exc: Exception | None = None
+    for attempt in range(1, AI_RETRIES + 1):
+        try:
+            req = urllib.request.Request(
+                GITHUB_MODELS_URL,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {token}",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+            content = body["choices"][0]["message"]["content"]
+            return sanitize_ai_metadata(strict_json_object(content))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError, IndexError, TypeError, ValueError) as exc:
+            last_exc = exc
+            if attempt < AI_RETRIES:
+                delay = AI_RETRY_DELAY * (2 ** (attempt - 1))
+                print(
+                    f"GitHub Models attempt {attempt}/{AI_RETRIES} failed: {exc}; retrying in {delay:.1f}s",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+
+    print(f"warning: GitHub Models request failed after {AI_RETRIES} attempts: {last_exc}; falling back", file=sys.stderr)
+    return {}
+
+
+# ── AI cache ──────────────────────────────────────────────────────────────
 
 
 def get_git_commit(src_root: Path) -> str | None:
@@ -319,7 +389,16 @@ def save_ai_cache(
     path.write_text(dump_frontmatter(payload), encoding="utf-8")
 
 
+# ── apply AI metadata (consistent: AI is authoritative, overrides are final) ─
+
+
 def apply_ai_metadata(fm: dict[str, Any], ai: dict[str, Any]) -> None:
+    """Apply AI metadata authoritatively — AI values replace heuristic defaults.
+
+    Heuristic tags and required_commands are preserved as a base, then AI
+    values are merged on top.  Overrides (applied later via deep_merge) have
+    the final say.
+    """
     if ai.get("description"):
         fm["description"] = ai["description"]
     hermes_meta = fm["metadata"]["hermes"]
@@ -337,6 +416,9 @@ def apply_ai_metadata(fm: dict[str, Any], ai: dict[str, Any]) -> None:
             if command not in merged_commands:
                 merged_commands.append(command)
         hermes_meta["required_commands"] = merged_commands
+
+
+# ── main generator ────────────────────────────────────────────────────────
 
 
 def generate_frontmatter(
@@ -396,7 +478,8 @@ def generate_frontmatter(
     return deep_merge(fm, overrides)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser()
     parser.add_argument("source_root", help="cloned upstream repository path")
     parser.add_argument("--entry", required=True, help="YAML file containing one source entry")
@@ -407,7 +490,7 @@ def main() -> int:
         "--github-model",
         default=os.environ.get("GITHUB_MODEL", DEFAULT_GITHUB_MODEL),
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     entry = load_yaml(Path(args.entry))
     fm = generate_frontmatter(

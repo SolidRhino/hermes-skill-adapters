@@ -28,6 +28,13 @@ def test_validate_sources_accepts_valid_config() -> None:
     assert entries[0]["name"] == "demo-skill"
 
 
+def test_validate_sources_accepts_examples_docs_configs() -> None:
+    config = valid_config()
+    config["skills"][0]["include"] = ["SKILL.md", "examples/", "docs/", "configs/"]
+    entries = vs.validate_sources(config)
+    assert entries[0]["name"] == "demo-skill"
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

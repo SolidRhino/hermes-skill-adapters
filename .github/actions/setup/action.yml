@@ -1,0 +1,22 @@
+name: Setup Hermes Skill Adapters
+description: Install Python, uv, dependencies, and actionlint
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: "3.11"
+
+    - uses: astral-sh/setup-uv@v8.2.0
+      with:
+        enable-cache: true
+
+    - name: Install dependencies
+      shell: bash
+      run: uv sync --extra test --locked
+
+    - name: Install actionlint
+      shell: bash
+      run: |
+        curl -sSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_linux_amd64.tar.gz | tar xz -C /usr/local/bin actionlint

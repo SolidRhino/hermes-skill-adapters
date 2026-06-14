@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=./schema.json
+
 skills:
   - name: literate-programming
     upstream:
@@ -27,3 +29,55 @@ skills:
             upstream: https://github.com/tlehman/litprog-skill
             source_repo: tlehman/litprog-skill
     append_notes: overlays/literate-programming/hermes-notes.md
+
+heuristics:
+  context_files:
+    - README.md
+    - SKILL.md
+    - CONTRIBUTING.md
+  known_commands:
+    - bun
+    - pandoc
+    - xelatex
+    - mermaid-filter
+    - node
+    - npm
+    - python
+    - uv
+    - deno
+    - go
+    - cargo
+    - rustc
+    - docker
+    - kubectl
+    - helm
+    - terraform
+    - ansible
+  keyword_tags:
+    literate: literate-programming
+    pandoc: pandoc
+    mermaid: mermaid
+    markdown: markdown
+    tangle: tangle
+    weave: weave
+    pdf: pdf
+    typescript: typescript
+    python: python
+    documentation: documentation
+    reverse-sync: reverse-sync
+    hook: hooks
+    docker: docker
+    kubernetes: kubernetes
+    terraform: infrastructure-as-code
+    ansible: configuration-management
+    testing: testing
+    pytest: testing
+    vitest: testing
+    jest: testing
+    deno: deno
+    rust: rust
+    golang: go
+    api: api
+    cli: cli
+    security: security
+    monitoring: monitoring

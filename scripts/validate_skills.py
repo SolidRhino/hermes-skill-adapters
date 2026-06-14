@@ -75,6 +75,8 @@ def validate_skill_dir(skill_dir: Path, fm: dict[str, Any] | None = None) -> dic
     for child in skill_dir.iterdir():
         if child.name.startswith("."):
             raise ValueError(f"Hidden path not allowed in generated skill: {child}")
+        if child.is_symlink():
+            raise ValueError(f"Symlink not allowed in generated skill: {child}")
         if child.is_dir() and child.name not in STANDARD_SUPPORT_DIRS:
             raise ValueError(f"Unexpected support directory in generated skill: {child}")
         if child.is_file() and child.name not in ALLOWED_TOP_LEVEL_FILES:
@@ -96,7 +98,8 @@ def validate_all(skills_dir: Path) -> int:
     return count
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "path",
@@ -104,7 +107,7 @@ def main() -> int:
         default=str(ROOT / "skills"),
         help="skill directory or skills root to validate",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     path = Path(args.path)
     if not path.is_absolute():
