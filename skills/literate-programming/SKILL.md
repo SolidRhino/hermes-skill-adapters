@@ -22,8 +22,8 @@ metadata:
     - documentation
     - reverse-sync
     - hooks
-    - code-documentation
-    - source-code
+    - api
+    - cli
     category: software-development
     homepage: https://github.com/tlehman/litprog-skill
     upstream: https://github.com/tlehman/litprog-skill

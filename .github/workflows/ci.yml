@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -16,19 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - uses: astral-sh/setup-uv@v8.2.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra test --locked
+      - uses: ./.github/actions/setup
 
       - name: Lint workflows
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+        run: actionlint -color
 
       - name: Test and validate
         run: |

@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "17 4 * * *"
 
+concurrency:
+  group: sync-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write
@@ -17,25 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - uses: astral-sh/setup-uv@v8.2.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --extra test --locked
+      - uses: ./.github/actions/setup
 
       - name: Lint workflows
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
-
-      - name: Test
-        run: |
-          uv run python -m py_compile scripts/*.py
-          uv run python scripts/sync_skills.py validate-sources
-          uv run pytest
+        run: actionlint -color
 
       - name: Sync skills
         env:

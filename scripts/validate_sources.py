@@ -11,14 +11,20 @@ from typing import Any
 
 import yaml
 
-from validate_skills import validate_relative_path
+# Allow direct script invocation: ensure project root is on sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validate_skills import validate_relative_path
 
 ROOT = Path(__file__).resolve().parents[1]
 VALID_SKILL_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 VALID_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 VALID_FRONTMATTER_MODES = {"auto", "github-models", "ai"}
 ALLOWED_INCLUDE_FILES = {"SKILL.md", "README.md", "LICENSE", "LICENSE.md"}
-ALLOWED_INCLUDE_DIRS = {"scripts/", "references/", "assets/", "templates/"}
+ALLOWED_INCLUDE_DIRS = {"scripts/", "references/", "assets/", "templates/", "examples/", "docs/", "configs/"}
 
 
 def load_yaml(path: Path) -> Any:
@@ -125,10 +131,11 @@ def validate_sources_file(path: Path) -> list[dict[str, Any]]:
     return validate_sources(load_yaml(path))
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="?", default=str(ROOT / "sources.yaml"))
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     path = Path(args.path)
     if not path.is_absolute():
