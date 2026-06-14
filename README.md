@@ -60,3 +60,12 @@ hermes skills install <owner>/hermes-skill-adapters/skills/literate-programming
 - The sync script copies files; it does not execute upstream scripts.
 - GitHub Models output is sanitized and cached before being applied.
 - Automated sync opens pull requests for review instead of directly merging upstream changes.
+
+## Maintenance automation
+
+Dependabot is configured for:
+
+- GitHub Actions updates in `.github/workflows/`
+- Python dependency updates from `pyproject.toml`
+
+It groups related dependency updates into weekly pull requests.
