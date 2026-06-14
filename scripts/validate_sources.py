@@ -25,6 +25,14 @@ VALID_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 VALID_FRONTMATTER_MODES = {"auto", "github-models", "ai"}
 ALLOWED_INCLUDE_FILES = {"SKILL.md", "README.md", "LICENSE", "LICENSE.md"}
 ALLOWED_INCLUDE_DIRS = {"scripts/", "references/", "assets/", "templates/"}
+ROOT_KEYS = {"skills", "heuristics", "safety"}
+SKILL_KEYS = {"name", "upstream", "target", "include", "frontmatter", "append_notes"}
+UPSTREAM_KEYS = {"repo", "ref", "path"}
+FRONTMATTER_KEYS = {"mode", "ai_cache", "overrides"}
+HEURISTICS_KEYS = {"context_files", "known_commands", "keyword_tags"}
+SAFETY_KEYS = {"max_file_bytes"}
+MIN_FILE_BYTES = 1024
+MAX_FILE_BYTES_LIMIT = 10 * 1024 * 1024
 
 
 def load_yaml(path: Path) -> Any:
@@ -44,6 +52,12 @@ def _require_string(value: Any, path: str) -> str:
     return value.strip()
 
 
+def _reject_unknown_keys(mapping: dict[str, Any], allowed: set[str], path: str) -> None:
+    unknown = sorted(set(mapping) - allowed)
+    if unknown:
+        raise ValueError(f"{path} contains unknown key(s): {unknown}")
+
+
 def validate_include(rel: str) -> str:
     rel = validate_relative_path(_require_string(rel, "include item"))
     if rel.endswith("/"):
@@ -58,6 +72,7 @@ def validate_frontmatter_config(config: Any, skill_name: str) -> None:
     if config is None:
         return
     fm = _require_mapping(config, f"skills[{skill_name}].frontmatter")
+    _reject_unknown_keys(fm, FRONTMATTER_KEYS, f"skills[{skill_name}].frontmatter")
     mode = fm.get("mode", "auto")
     if mode not in VALID_FRONTMATTER_MODES:
         raise ValueError(
@@ -76,12 +91,14 @@ def validate_frontmatter_config(config: Any, skill_name: str) -> None:
 
 def validate_source_entry(entry: Any, index: int) -> dict[str, Any]:
     item = _require_mapping(entry, f"skills[{index}]")
+    _reject_unknown_keys(item, SKILL_KEYS, f"skills[{index}]")
 
     name = _require_string(item.get("name"), f"skills[{index}].name")
     if not VALID_SKILL_NAME.match(name):
         raise ValueError(f"skills[{index}].name must be lowercase kebab/underscore case: {name!r}")
 
     upstream = _require_mapping(item.get("upstream"), f"skills[{name}].upstream")
+    _reject_unknown_keys(upstream, UPSTREAM_KEYS, f"skills[{name}].upstream")
     repo = _require_string(upstream.get("repo"), f"skills[{name}].upstream.repo")
     if not VALID_REPO.match(repo):
         raise ValueError(f"skills[{name}].upstream.repo must be owner/repo: {repo!r}")
@@ -109,19 +126,75 @@ def validate_source_entry(entry: Any, index: int) -> dict[str, Any]:
     return item
 
 
+def validate_safety(config: Any) -> None:
+    if config is None:
+        return
+    safety = _require_mapping(config, "sources.yaml.safety")
+    _reject_unknown_keys(safety, SAFETY_KEYS, "sources.yaml.safety")
+    max_file_bytes = safety.get("max_file_bytes")
+    if max_file_bytes is not None:
+        if not isinstance(max_file_bytes, int):
+            raise ValueError("sources.yaml.safety.max_file_bytes must be an integer")
+        if not (MIN_FILE_BYTES <= max_file_bytes <= MAX_FILE_BYTES_LIMIT):
+            raise ValueError(
+                "sources.yaml.safety.max_file_bytes must be between "
+                f"{MIN_FILE_BYTES} and {MAX_FILE_BYTES_LIMIT}"
+            )
+
+
+def validate_heuristics(config: Any) -> None:
+    if config is None:
+        return
+    heuristics = _require_mapping(config, "sources.yaml.heuristics")
+    _reject_unknown_keys(heuristics, HEURISTICS_KEYS, "sources.yaml.heuristics")
+
+    context_files = heuristics.get("context_files")
+    if context_files is not None:
+        if not isinstance(context_files, list):
+            raise ValueError("sources.yaml.heuristics.context_files must be a list")
+        for rel in context_files:
+            validate_relative_path(_require_string(rel, "sources.yaml.heuristics.context_files item"))
+
+    known_commands = heuristics.get("known_commands")
+    if known_commands is not None:
+        if not isinstance(known_commands, list):
+            raise ValueError("sources.yaml.heuristics.known_commands must be a list")
+        for command in known_commands:
+            command = _require_string(command, "sources.yaml.heuristics.known_commands item")
+            if not re.match(r"^[A-Za-z0-9_.+-]+$", command):
+                raise ValueError(f"invalid known command: {command!r}")
+
+    keyword_tags = heuristics.get("keyword_tags")
+    if keyword_tags is not None:
+        if not isinstance(keyword_tags, dict):
+            raise ValueError("sources.yaml.heuristics.keyword_tags must be a mapping")
+        for keyword, tag in keyword_tags.items():
+            _require_string(str(keyword), "sources.yaml.heuristics.keyword_tags key")
+            tag = _require_string(tag, "sources.yaml.heuristics.keyword_tags value")
+            if not re.match(r"^[a-z0-9][a-z0-9_-]*$", tag):
+                raise ValueError(f"invalid heuristic tag: {tag!r}")
+
+
 def validate_sources(config: Any) -> list[dict[str, Any]]:
     root = _require_mapping(config, "sources.yaml")
+    _reject_unknown_keys(root, ROOT_KEYS, "sources.yaml")
+    validate_heuristics(root.get("heuristics"))
+    validate_safety(root.get("safety"))
     skills = root.get("skills")
     if not isinstance(skills, list) or not skills:
         raise ValueError("sources.yaml must contain a non-empty skills list")
 
     seen: set[str] = set()
     validated: list[dict[str, Any]] = []
+    previous_name = ""
     for index, entry in enumerate(skills):
         item = validate_source_entry(entry, index)
         name = item["name"]
         if name in seen:
             raise ValueError(f"duplicate skill name in sources.yaml: {name}")
+        if previous_name and name < previous_name:
+            raise ValueError("skills in sources.yaml must be sorted by name")
+        previous_name = name
         seen.add(name)
         validated.append(item)
     return validated

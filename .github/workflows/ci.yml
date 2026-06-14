@@ -31,4 +31,7 @@ jobs:
           uv run python scripts/sync_skills.py validate-sources
           uv run python scripts/sync_skills.py validate
           uv run python scripts/sync_skills.py sync --check
+          uv run hermes-skill-validate
+          uv run hermes-skill-validate-sources
+          uv run hermes-skill-sync sync --check
           uv run pytest

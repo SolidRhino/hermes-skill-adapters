@@ -38,7 +38,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "sources.yaml"
 FRONTMATTER_RE = re.compile(r"\A---\s*\n.*?\n---\s*\n", re.DOTALL)
 IGNORED_DIRS = {".git", "node_modules", "dist"}
-MAX_FILE_BYTES = 2 * 1024 * 1024
+DEFAULT_MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_FILE_BYTES = DEFAULT_MAX_FILE_BYTES
 SUBCOMMANDS = {"sync", "validate", "validate-sources", "generate-frontmatter"}
 GIT_RETRIES = 3
 GIT_RETRY_DELAY = 1.0
@@ -128,6 +129,19 @@ def strip_frontmatter(text: str) -> str:
     return FRONTMATTER_RE.sub("", text, count=1).lstrip()
 
 
+def configured_max_file_bytes() -> int:
+    if MAX_FILE_BYTES != DEFAULT_MAX_FILE_BYTES:
+        return MAX_FILE_BYTES
+    try:
+        config = load_yaml(SOURCES)
+    except OSError:
+        return MAX_FILE_BYTES
+    safety = config.get("safety") if isinstance(config, dict) else None
+    if isinstance(safety, dict) and isinstance(safety.get("max_file_bytes"), int):
+        return int(safety["max_file_bytes"])
+    return MAX_FILE_BYTES
+
+
 def ensure_under_root(path: Path, root: Path) -> None:
     if not path.resolve().is_relative_to(root.resolve()):
         raise ValueError(f"Unsafe path escaped root: {path}")
@@ -137,7 +151,8 @@ def assert_safe_source_path(path: Path, src_root: Path) -> None:
     if path.is_symlink():
         raise ValueError(f"Refusing to copy symlink from upstream: {path.relative_to(src_root)}")
     ensure_under_root(path, src_root)
-    if path.is_file() and path.stat().st_size > MAX_FILE_BYTES:
+    max_file_bytes = configured_max_file_bytes()
+    if path.is_file() and path.stat().st_size > max_file_bytes:
         raise ValueError(
             f"Refusing to copy oversized upstream file: {path.relative_to(src_root)} "
             f"({path.stat().st_size} bytes)"
