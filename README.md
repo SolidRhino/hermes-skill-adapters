@@ -108,6 +108,7 @@ Release Please is configured to maintain releases from Conventional Commits:
 - `release-please-config.json` defines the Python release strategy.
 - `.release-please-manifest.json` tracks the current version.
 - `CHANGELOG.md` is maintained automatically by Release Please; do not edit release entries manually.
+- `uv.lock` is included through Release Please `extra-files` so the locked project version stays in sync with `pyproject.toml`.
 - Merging the Release Please PR creates the GitHub Release and tag.
 
 Use Conventional Commit prefixes so releases are categorized correctly:

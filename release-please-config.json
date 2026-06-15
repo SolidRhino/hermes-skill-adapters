@@ -5,7 +5,14 @@
       "release-type": "python",
       "package-name": "hermes-skill-adapters",
       "include-component-in-tag": false,
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='hermes-skill-adapters')].version"
+        }
+      ]
     }
   }
 }

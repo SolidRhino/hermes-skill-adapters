@@ -36,7 +36,7 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 - `.github/workflows/release-please.yml` — release PR, automatic `CHANGELOG.md`, tags, and GitHub Releases.
 - `.github/actions/setup/action.yml` — composite action for shared CI/sync setup.
 - `.github/dependabot.yml` — weekly dependency updates for GitHub Actions and pip.
-- `release-please-config.json` — Release Please manifest-mode configuration.
+- `release-please-config.json` — Release Please manifest-mode configuration, including `uv.lock` `extra-files` version updates.
 - `.release-please-manifest.json` — current released version tracked by Release Please.
 - `CHANGELOG.md` — generated/maintained by Release Please from Conventional Commits.
 - `justfile` — convenience recipes: `sync`, `check`, `test`, `lint`, `validate`, `validate-sources`, `validate-release-config`, `clean`, `ci`.
