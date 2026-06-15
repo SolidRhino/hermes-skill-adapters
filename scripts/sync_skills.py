@@ -159,14 +159,36 @@ def assert_safe_source_path(path: Path, src_root: Path) -> None:
         )
 
 
+def _require_clean_tree() -> None:
+    """Raise if git working tree has uncommitted changes that sync could lose."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError:
+        return  # not a git repo — caller manages their own backup
+    if result.stdout.strip():
+        raise RuntimeError(
+            f"Working tree has uncommitted changes. "
+            f"Commit or stash before sync:\n{result.stdout.strip()[:500]}"
+        )
+
+
 def safe_copy_file(src: Path, dest: Path, src_root: Path) -> None:
     assert_safe_source_path(src, src_root)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest, follow_symlinks=False)
 
 
-def safe_copy_dir(src: Path, dest: Path, src_root: Path) -> None:
+def safe_copy_dir(src: Path, dest: Path, src_root: Path, depth: int = 0, max_depth: int = 20) -> None:
     assert_safe_source_path(src, src_root)
+    if depth > max_depth:
+        raise ValueError(
+            f"Directory tree exceeds max depth ({max_depth}): {src.relative_to(src_root)}"
+        )
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True, exist_ok=True)
@@ -176,7 +198,7 @@ def safe_copy_dir(src: Path, dest: Path, src_root: Path) -> None:
         assert_safe_source_path(child, src_root)
         child_dest = dest / child.name
         if child.is_dir():
-            safe_copy_dir(child, child_dest, src_root)
+            safe_copy_dir(child, child_dest, src_root, depth=depth + 1, max_depth=max_depth)
         elif child.is_file():
             safe_copy_file(child, child_dest, src_root)
         else:
@@ -331,6 +353,8 @@ def add_sync_args(parser: argparse.ArgumentParser) -> None:
 
 def run_sync(args: argparse.Namespace) -> int:
     entries = validate_sources(load_yaml(SOURCES))
+    if not args.check:
+        _require_clean_tree()
     before = snapshot_generated(include_content=True) if args.check else {}
     with tempfile.TemporaryDirectory(prefix="hermes-skill-adapters-") as td:
         tmpdir = Path(td)
