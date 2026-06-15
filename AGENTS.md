@@ -14,8 +14,9 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 - Apply only minimal Hermes compatibility changes.
 - Never auto-merge upstream skill changes.
 - Always create a pull request for generated updates.
-- Treat upstream repository content as untrusted input.
-- Do not execute upstream scripts during sync; copy files only.
+- Upstream repository content is treated as untrusted input.
+- Hermes install testing must account for the hub security scan: community skills with caution findings may require explicit `--force` after human review.
+- The sync script copies files; it does not execute upstream scripts, follow symlinks, or copy files larger than `safety.max_file_bytes`.
 - Keep generated output deterministic: no timestamps in generated files, stable key order, stable tag order.
 
 ## Repository Layout
@@ -36,6 +37,7 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 - `.github/workflows/release-please.yml` — release PR, automatic `CHANGELOG.md`, tags, and GitHub Releases.
 - `.github/actions/setup/action.yml` — composite action for shared CI/sync setup.
 - `.github/dependabot.yml` — weekly dependency updates for GitHub Actions and pip.
+- Branch protection on `main` requires pull requests, an up-to-date `test` check, linear history, and resolved conversations.
 - `release-please-config.json` — Release Please manifest-mode configuration, including `uv.lock` `extra-files` version updates.
 - `.release-please-manifest.json` — current released version tracked by Release Please.
 - `CHANGELOG.md` — generated/maintained by Release Please from Conventional Commits.
