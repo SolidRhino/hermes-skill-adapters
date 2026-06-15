@@ -36,7 +36,7 @@ It syncs upstream skill repositories, applies Hermes-compatible frontmatter, pre
 - `.github/workflows/sync.yml` — scheduled/manual sync + PR.
 - `.github/workflows/release-please.yml` — release PR, automatic `CHANGELOG.md`, tags, and GitHub Releases.
 - `.github/actions/setup/action.yml` — composite action for shared CI/sync setup.
-- `.github/dependabot.yml` — weekly dependency updates for GitHub Actions and pip.
+- `.github/dependabot.yml` — weekly dependency updates for GitHub Actions and Python/`pyproject.toml` dependencies. Dependabot labels this ecosystem as `pip`; local development still uses `uv`.
 - Branch protection on `main` requires pull requests, an up-to-date `test` check, linear history, and resolved conversations.
 - `release-please-config.json` — Release Please manifest-mode configuration, including `uv.lock` `extra-files` version updates.
 - `.release-please-manifest.json` — current released version tracked by Release Please.
@@ -60,7 +60,7 @@ just validate-sources
 just validate-release-config
 just ci
 
-# Using entry points (after pip install -e .)
+# Using entry points through uv (after uv sync --extra test --locked)
 hermes-skill-sync sync
 hermes-skill-validate
 hermes-skill-validate-sources

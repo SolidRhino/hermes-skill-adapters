@@ -19,6 +19,8 @@ updates:
         patterns:
           - "*"
 
+  # Dependabot uses the `pip` ecosystem name for Python dependency files such as
+  # pyproject.toml. Local development and CI still use uv/uv.lock.
   - package-ecosystem: pip
     directory: /
     schedule:
