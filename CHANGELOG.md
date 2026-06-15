@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/SolidRhino/hermes-skill-adapters/compare/v0.1.1...v0.2.0) (2026-06-15)
+
+
+### Features
+
+* implement prism-full remediation mitigations ([d8108c7](https://github.com/SolidRhino/hermes-skill-adapters/commit/d8108c723d85f770176c362f0e16509f992ec0f6))
+
 ## [0.1.1](https://github.com/SolidRhino/hermes-skill-adapters/compare/v0.1.0...v0.1.1) (2026-06-15)
 
 
