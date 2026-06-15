@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/SolidRhino/hermes-skill-adapters/compare/v0.1.0...v0.1.1) (2026-06-15)
+
+
+### Documentation
+
+* document release and install workflow ([ed58884](https://github.com/SolidRhino/hermes-skill-adapters/commit/ed588846f9c0045ee3d3f11eaaeb1b0ffea4d448))
+
 ## 0.1.0 (2026-06-15)
 
 
