@@ -154,6 +154,8 @@ Release Please is configured to maintain releases from Conventional Commits:
 - `uv.lock` is included through Release Please `extra-files` so the locked project version stays in sync with `pyproject.toml`.
 - Merging the Release Please PR creates the GitHub Release and tag.
 
+Release Please currently uses the repository `GITHUB_TOKEN`. Pull requests created by that token may not automatically trigger PR CI. If a Release Please PR has no checks, either run CI manually via `workflow_dispatch` on the release branch, or configure a dedicated `RELEASE_PLEASE_TOKEN` secret from a bot/PAT so release PRs trigger normal checks.
+
 Use Conventional Commit prefixes so releases are categorized correctly:
 
 - `feat:` for minor releases.
