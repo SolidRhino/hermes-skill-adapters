@@ -152,6 +152,7 @@ safety:
 - `sources.yaml` rejects unknown keys and requires skill entries sorted by name for deterministic diffs.
 - `actionlint` is pinned by version and SHA256 in the composite setup action.
 - Release automation is handled by Release Please; do not hand-edit generated release sections in `CHANGELOG.md`.
+- Release Please currently uses `GITHUB_TOKEN`; its PRs may need manual CI via `workflow_dispatch` unless a dedicated `RELEASE_PLEASE_TOKEN` secret is configured.
 - Use Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `ci:`) so release notes and version bumps are correct.
 - Accept GitHub Models output only as strict JSON with approved metadata keys; never accept identity fields such as `name`, `homepage`, or `upstream` from the model.
 - Cache AI metadata with model, prompt version, upstream repo/ref, and upstream commit provenance.
