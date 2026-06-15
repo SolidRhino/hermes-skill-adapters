@@ -75,6 +75,20 @@ The first published release is [`v0.1.0`](https://github.com/SolidRhino/hermes-s
 
 Release Please maintains `CHANGELOG.md`, `.release-please-manifest.json`, `pyproject.toml`, and `uv.lock` from Conventional Commits. Do not hand-edit generated release entries.
 
+## Remediation Status
+
+Implemented mitigations for prism-full findings:
+
+- **Dirty-tree guard** — `sync` aborts if the git working tree has uncommitted changes, preventing partial-sync corruption.
+- **Copy depth limit** — `safe_copy_dir` caps recursion at 20 levels, with configurable override.
+- **Release Please token** — workflow supports `RELEASE_PLEASE_TOKEN` secret so release-PRs trigger CI checks.
+- **sources.yaml sorted** — enforced by `validate_sources.py` since inception.
+
+Deferred (requires organizational or experimental change):
+
+- **Async parallel AI** — blocked by `urllib` synchronous stack; would need `httpx`/`aiohttp` dependency and signal-safe cancellation. Tracked for future refactor.
+- **uv.lock release fallback** — `extra-files` JSONPath is the current mitigation; full `uv lock` post-processing requires a release hook script or custom Release Please plugin.
+
 ## Hermes installation
 
 Add this repository as a Hermes skill tap:
