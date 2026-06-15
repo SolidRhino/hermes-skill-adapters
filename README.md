@@ -69,14 +69,49 @@ Run unit tests:
 uv run pytest
 ```
 
+## Releases
+
+The first published release is [`v0.1.0`](https://github.com/SolidRhino/hermes-skill-adapters/releases/tag/v0.1.0).
+
+Release Please maintains `CHANGELOG.md`, `.release-please-manifest.json`, `pyproject.toml`, and `uv.lock` from Conventional Commits. Do not hand-edit generated release entries.
+
 ## Hermes installation
 
-After this repository is pushed to GitHub, add it as a Hermes skill tap:
+Add this repository as a Hermes skill tap:
 
 ```bash
-hermes skills tap add <owner>/hermes-skill-adapters
-hermes skills search literate --source github
-hermes skills install <owner>/hermes-skill-adapters/skills/literate-programming
+hermes skills tap add SolidRhino/hermes-skill-adapters
+```
+
+Search and inspect the packaged skill:
+
+```bash
+hermes skills search literate-programming --source github
+hermes skills inspect SolidRhino/hermes-skill-adapters/skills/literate-programming
+```
+
+Install the packaged skill:
+
+```bash
+hermes skills install SolidRhino/hermes-skill-adapters/skills/literate-programming
+```
+
+Hermes may block community skills with security-scan findings. For `literate-programming`, the current scan flags installation commands and project-local hook setup instructions. Review the findings first; if you intentionally accept them, install with:
+
+```bash
+hermes skills install SolidRhino/hermes-skill-adapters/skills/literate-programming --force
+```
+
+A successful install includes the support files beside `SKILL.md`:
+
+```text
+assets/pandoc-header.yaml
+references/analysis-workflow.md
+references/chunk-syntax.md
+references/pandoc-setup.md
+scripts/hook-reverse-sync.ts
+scripts/tangle.ts
+scripts/untangle.ts
 ```
 
 ## Current packaged skills
@@ -94,6 +129,14 @@ hermes skills install <owner>/hermes-skill-adapters/skills/literate-programming
 - Automated sync opens pull requests for review instead of directly merging upstream changes.
 
 ## Maintenance automation
+
+The `main` branch is protected:
+
+- pull requests are required;
+- the `test` status check must pass and be up to date;
+- linear history is required;
+- force pushes and branch deletion are disabled;
+- conversations must be resolved before merge.
 
 Dependabot is configured for:
 
